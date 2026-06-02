@@ -66,7 +66,36 @@ class TaiwanStockScreenerEngine:
         if self.progress_callback:
             self.progress_callback(percent)
 
-    def fetch_ordinary_stocks(self) -> pd.DataFrame:
+    def fetch_ordinary_stocks(self, test_mode: bool = False) -> pd.DataFrame:
+        if test_mode:
+            self.log("【步驟 1 - 測試模式】已載入 15 檔台股指標股進行快速測試...")
+            self.set_progress(5)
+            test_stocks = [
+                {"stock_id": "2330", "stock_name": "台積電", "type": "twse", "industry_category": "半導體業"},
+                {"stock_id": "2317", "stock_name": "鴻海", "type": "twse", "industry_category": "其他電子業"},
+                {"stock_id": "2454", "stock_name": "聯發科", "type": "twse", "industry_category": "半導體業"},
+                {"stock_id": "3231", "stock_name": "緯創", "type": "twse", "industry_category": "電腦及週邊設備業"},
+                {"stock_id": "2377", "stock_name": "微星", "type": "twse", "industry_category": "電腦及週邊設備業"},
+                {"stock_id": "6214", "stock_name": "精誠", "type": "twse", "industry_category": "資訊服務業"},
+                {"stock_id": "3706", "stock_name": "神達", "type": "twse", "industry_category": "電腦及週邊設備業"},
+                {"stock_id": "2382", "stock_name": "廣達", "type": "twse", "industry_category": "電腦及週邊設備業"},
+                {"stock_id": "2357", "stock_name": "華碩", "type": "twse", "industry_category": "電腦及週邊設備業"},
+                {"stock_id": "2449", "stock_name": "京元電子", "type": "twse", "industry_category": "半導體業"},
+                {"stock_id": "2308", "stock_name": "台達電", "type": "twse", "industry_category": "電子零組件業"},
+                {"stock_id": "2303", "stock_name": "聯電", "type": "twse", "industry_category": "半導體業"},
+                {"stock_id": "2881", "stock_name": "富邦金", "type": "twse", "industry_category": "金融保險業"},
+                {"stock_id": "2882", "stock_name": "國泰金", "type": "twse", "industry_category": "金融保險業"},
+                {"stock_id": "2603", "stock_name": "長榮", "type": "twse", "industry_category": "航運業"}
+            ]
+            df_ordinary = pd.DataFrame(test_stocks)
+            df_ordinary['yf_ticker'] = df_ordinary.apply(
+                lambda row: f"{row['stock_id']}.TW" if row['type'] == 'twse' else f"{row['stock_id']}.TWO",
+                axis=1
+            )
+            self.log(f"【成功】已載入 {len(df_ordinary)} 檔測試股票進行分析。")
+            self.set_progress(10)
+            return df_ordinary
+
         self.log("【步驟 1】正在獲取台股上市/上櫃普通股清單...")
         self.set_progress(5)
         try:
@@ -271,6 +300,7 @@ class TaiwanStockScreenerUI:
         self.df_result = pd.DataFrame()
         self.screener_thread = None
         self.log_queue = queue.Queue()
+        self.var_test_mode = tk.BooleanVar(value=True)  # 預設開啟快速測試模式
         
         self.setup_ui()
         self.root.after(100, self.process_log_queue)
@@ -369,6 +399,14 @@ class TaiwanStockScreenerUI:
         )
         self.btn_csv.pack(side=tk.LEFT, padx=10)
         
+        # 新增測試模式勾選框
+        self.chk_test = ttk.Checkbutton(
+            btn_container, 
+            text="快速本機測試模式 (僅載入15檔熱門指標股，3秒完成)", 
+            variable=self.var_test_mode
+        )
+        self.chk_test.pack(side=tk.LEFT, padx=15)
+        
         # 進度條與狀態文字
         progress_container = ttk.Frame(ctrl_frame)
         progress_container.pack(fill=tk.X, padx=10, pady=(5, 10))
@@ -457,6 +495,7 @@ class TaiwanStockScreenerUI:
             messagebox.showwarning("執行中", "選股流程已在運行中，請耐心等候！")
             return
             
+        test_mode = self.var_test_mode.get()
         self.btn_start.config(state=tk.DISABLED, bg="#95A5A6")
         self.btn_excel.config(state=tk.DISABLED, bg="#95A5A6")
         self.btn_csv.config(state=tk.DISABLED, bg="#95A5A6")
@@ -472,11 +511,11 @@ class TaiwanStockScreenerUI:
         self.progressbar.configure(value=0)
         self.lbl_status.config(text="系統狀態：啟動選股引擎中...")
         
-        # 啟動後台線程執行計算
-        self.screener_thread = threading.Thread(target=self.run_screener_flow, daemon=True)
+        # 啟動後台線程執行計算，傳入 test_mode
+        self.screener_thread = threading.Thread(target=self.run_screener_flow, args=(test_mode,), daemon=True)
         self.screener_thread.start()
 
-    def run_screener_flow(self):
+    def run_screener_flow(self, test_mode: bool = False):
         start_time = time.time()
         engine = TaiwanStockScreenerEngine(
             log_callback=self.append_log_safe, 
@@ -485,7 +524,7 @@ class TaiwanStockScreenerUI:
         
         try:
             # 1. 獲取普通股
-            df_ordinary = engine.fetch_ordinary_stocks()
+            df_ordinary = engine.fetch_ordinary_stocks(test_mode=test_mode)
             tickers = df_ordinary['yf_ticker'].tolist()
             
             # 2. 下載股價資料
