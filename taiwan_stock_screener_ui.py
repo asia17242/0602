@@ -47,15 +47,15 @@ class TaiwanStockScreenerEngine:
         :param log_callback: 日誌回呼函數，用來更新 UI 中的日誌文字
         :param progress_callback: 進度條百分比回呼函數 (0-100)
         """
+        self.log_callback = log_callback
+        self.progress_callback = progress_callback
+        
         self.api = DataLoader()
         if api_token:
             self.api.login_by_token(api_token)
             self.log("【系統】已成功登入 FinMind API 帳號。")
         else:
             self.log("【系統】未提供 FinMind API 憑證，將以免費模式執行 (注意 API 次數限制)。")
-            
-        self.log_callback = log_callback
-        self.progress_callback = progress_callback
 
     def log(self, message: str):
         print(message)
